@@ -269,7 +269,7 @@ pub fn day_five_part_one() {
 	// println!("PART_ONE");
 	// part_one(1);
 	println!("PART_TWO");
-	part_two(8);
+	part_two(5);
 }
 
 mod tests {
