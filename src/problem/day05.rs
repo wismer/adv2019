@@ -1,5 +1,5 @@
 use std::fs;
-
+use permutohedron::heap_recursive;
 #[derive(Debug, Clone, Copy)]
 pub enum ParameterMode {
 	Immediate,
@@ -158,7 +158,7 @@ impl Operation {
 		};
 		println!("OUTPUT: {} index: {}, v: {}", i, index, commands.len());
 
-		index + 2
+		i as usize
 	}
 }
 
@@ -207,7 +207,7 @@ impl OperationReader {
 }
 
 fn get_input() -> Vec<isize> {
-	let input: Vec<isize> = fs::read_to_string("./day05.txt")
+	let input: Vec<isize> = fs::read_to_string("./day07.txt")
 		.unwrap()
 		.split(",")
 		.map(|c| c.parse::<isize>().unwrap())
@@ -221,9 +221,7 @@ fn part_two(value: isize) {
 	let mut index = 0;
 	while index < input.len() {
 		let raw_opc = &input[index];
-		// println!("INDEX: {}, VALUE: {} OPERATION: {:?}", index, input[index], raw_opc);
 		let operation = OperationReader::parse_operation(*raw_opc);
-		println!("INDEX: {}, VALUE: {} OPERATION: {:?}", index, input[index], input);
 		index = match operation.command {
 			OpCode::Add => operation.add(index, &mut input),
 			OpCode::Mult => operation.mult(index, &mut input),
@@ -265,16 +263,163 @@ fn part_one(value: isize) {
 	}
 }
 
+fn run_program(input: &mut Vec<isize>, input_values: (isize, isize)) -> isize {
+	let mut index = 0;
+	let mut input_data = input;
+	let mut output = 0;
+	// reallyREALLY inelegant but fuck it
+	let mut used_first_input = false;
+	while index < input_data.len() {
+		let raw_opc = &input_data[index];
+		let operation = OperationReader::parse_operation(*raw_opc);
+		index = match operation.command {
+			OpCode::Add => operation.add(index, &mut input_data),
+			OpCode::Mult => operation.mult(index, &mut input_data),
+			OpCode::Save => {
+				if used_first_input {
+					operation.save(index, &mut input_data, input_values.1)
+				} else {
+					used_first_input = true;
+					operation.save(index, &mut input_data, input_values.0)
+				}
+			},
+			OpCode::Print => {
+				output = operation.print(index, &input_data);
+				index + 2
+			},
+			OpCode::Equals | OpCode::LessThan => operation.less_than_or_equal_to(operation.command, index, &mut input_data),
+			OpCode::JumpIfFalse => operation.jump(index, false, &mut input_data),
+			OpCode::JumpIfTrue => operation.jump(index, true, &mut input_data),
+			OpCode::Halt => {
+				println!("PROGRAM_HALTED");
+				break;
+			},
+		};
+	}
+	
+	output as isize
+}
+
 pub fn day_five_part_one() {
 	// println!("PART_ONE");
 	// part_one(1);
 	println!("PART_TWO");
-	part_two(5);
+	// part_two(5);
+	day_seven_part_one();
+}
+
+fn day_seven_part_one() {
+	let mut data = [0,1,2,3,4];
+	let mut permutations = Vec::new();
+	heap_recursive(&mut data, |permutation| {
+		permutations.push(permutation.to_vec())
+	});
+
+	let mut final_output = 0;
+
+	for phase_settings in permutations {
+		let output = get_amplifier_output(&phase_settings[..], get_input(), 0);
+		if output > final_output {
+			final_output = output;
+		}
+	}
+
+	println!("FINAL_OUTPUT_DAY_SEVEN_PART_ONE: {}", final_output);
+}
+
+fn day_seven_part_two() {
+	// let mut data = [5,6,7,8,9];
+	// let mut permutations = Vec::new();
+	// heap_recursive(&mut data, |permutation| {
+	// 	permutations.push(permutation.to_vec())
+	// });
+
+	// let mut final_output = 0;
+	// loop {
+	// 	for phase_settings in permutations {
+	// 		let output = get_amplifier_output(&phase_settings[..], get_input());
+	// 		if output > final_output {
+	// 			final_output = output;
+	// 		}
+	// 	}
+
+	// println!("FINAL_OUTPUT_DAY_SEVEN_PART_ONE: {}", final_output);
+}
+
+
+fn get_amplifier_output_part_two(phase_settings: &[isize], input_data: Vec<isize>, initial_value: isize) -> isize {
+	let mut output = initial_value;
+	let mut data = input_data.clone();
+	loop {
+		for phase_setting in phase_settings {
+			let input = (*phase_setting, output);
+			println!("AMPLIFIER-DATA: {:?}", input);
+			output = run_program(&mut data, input);
+		}
+
+
+	}
+
+	output
+}
+
+
+fn get_amplifier_output(phase_settings: &[isize], input_data: Vec<isize>, initial_value: isize) -> isize {
+	let mut output = initial_value;
+	for phase_setting in phase_settings {
+		let mut data = input_data.clone();
+		let input = (*phase_setting, output);
+		output = run_program(&mut data, input);
+	}
+
+	output
 }
 
 mod tests {
+	use super::{
+		get_amplifier_output,
+	};
 	#[test]
-	fn test_opcode_patterns() {
-		unimplemented!();
+	fn test_day_seven_pattern_one() {
+		let expected_value = 43210;
+		let phase_settings = &[4,3,2,1,0];
+		let input_data: Vec<isize> = vec![3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0];
+		let actual_value = get_amplifier_output(phase_settings, input_data, 0);
+
+		assert_eq!(expected_value, actual_value);
+	}
+
+	#[test]
+	fn test_day_seven_pattern_two() {
+		let expected_value = 54321;
+		let phase_settings = &[0,1,2,3,4];
+		let input_data: Vec<isize> = vec![3,23,3,24,1002,24,10,24,1002,23,-1,23,101,5,23,23,1,24,23,23,4,23,99,0,0];
+		let actual_value = get_amplifier_output(phase_settings, input_data, 0);
+
+		assert_eq!(expected_value, actual_value);
+	}
+
+	#[test]
+	fn test_day_seven_pattern_three() {
+		let expected_value = 65210;
+		let phase_settings = &[1,0,4,3,2];
+		let input_data: Vec<isize> = vec![3,31,3,32,1002,32,10,32,1001,31,-2,31,1007,31,0,33,1002,33,7,33,1,33,31,31,1,32,31,31,4,31,99,0,0,0];
+		let actual_value = get_amplifier_output(phase_settings, input_data, 0);
+
+		assert_eq!(expected_value, actual_value);
+	}
+
+	#[test]
+	fn test_day_seven_part_two_pattern_one() {
+		let phase_settings = &[9,8,7,6,5];
+		let input_data: Vec<isize> = vec![3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5];
+		let expected_value = 139629729;
+		let mut actual_value = get_amplifier_output(phase_settings, input_data.clone(), 0);
+		while expected_value > actual_value {
+			actual_value = get_amplifier_output(phase_settings, input_data.clone(), actual_value);
+			println!("actual {}", actual_value);
+		}
+
+		assert_eq!(expected_value, actual_value);
 	}
 }
